@@ -22,7 +22,7 @@ def handle_client(client_socket):
             handle_fetch_file_location(client_socket, parts[1])
         elif parts[0] == "INFORM":
             handle_inform_fetched_file(client_socket, parts[1], parts[2])
-        else
+        else:
             print("Invalid command")
 
 # Function to publish a file to the server
@@ -34,7 +34,6 @@ def handle_publish_file(client_socket, client_id, file_name):
     else:
         # If the file is not in the dictionary, create a new list with the client_id
         published_files[file_name] = [client_id]
-    print(client_id)
     response = "File published successfully"
     client_socket.send(response.encode())
 
@@ -42,6 +41,7 @@ def handle_publish_file(client_socket, client_id, file_name):
 def handle_fetch_file_location(client_socket, file_name):
     target_clients = published_files.get(file_name, [])
     response = " ".join(target_clients)
+    if(not response): response = "none"
     client_socket.send(response.encode())
 
 # Function to fetch a file from a target client
@@ -59,7 +59,6 @@ def discover_file_names(client_id):
     for file, clients in published_files.items():
         for client in clients:
             if client == client_id: client_files.append(file)
-    print(published_files)
     response = " ".join(client_files)
     print(response)
 
@@ -78,11 +77,15 @@ def handle_command():
     while True:
         command = input("Enter a command for the server (ping, discover): ").strip().split()
         if command[0] == "ping":
-            ping_host(command[1])
-            pass
+            try:
+                ping_host(command[1])
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
         elif command[0] == "discover":
-            discover_file_names(command[1])
-            pass
+            try:
+                discover_file_names(command[1])
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
         else:
             print("Invalid command")
 

@@ -45,14 +45,22 @@ def listen_for_server():
         command = input("Enter a command (publish, fetch): ").strip().split()
         if command[0] == "publish":
             # Implement the logic to publish a file here
-            publish_file(CLIENT_ID, command[1], command[2], client_socket)
-            pass
+            try:
+                publish_file(CLIENT_ID, command[1], command[2], client_socket)
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
+                
         elif command[0] == "fetch":
             # Fetch client has file
-            target_clients = fetch_file_locations(command[1], client_socket)
-            fetch_handler = threading.Thread(target=fetch_and_receive_file, args=(command[1], target_clients))
-            fetch_handler.start()
-            pass
+            try:
+                target_clients = fetch_file_locations(command[1], client_socket)
+                if(target_clients == "none"): raise Exception("file not founed")
+                target_clients = target_clients.split(' ')
+                fetch_handler = threading.Thread(target=fetch_and_receive_file, args=(command[1], target_clients[0]))
+                fetch_handler.start()
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
+            
         else:
             print("Invalid command. Supported commands: CONNECT, PUBLISH, FETCH")
 
@@ -83,7 +91,7 @@ def fetch_and_receive_file(file_name, client_id):
             file.write(data)
 
     inform_fetched_file(CLIENT_ID, file_name)
-    print("done")
+    print("FETCH SUCCESSFUL")
 
 # Function to publish a file
 def publish_file(client_id, lname, fname, client_socket):
@@ -123,7 +131,7 @@ def main():
     request_handling_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     request_handling_socket.bind((CLIENT_SERVER_IP, CLIENT_SERVER_PORT))  # Change the port as needed
     request_handling_socket.listen(5)
-    print("Client server listening on 127.0.0.1:12346")
+    print("Listening for incoming requests on 127.0.0.1:12346")
     while True:
         client_socket, addr = request_handling_socket.accept()
         print(f"Accepted connection from {addr[0]}:{addr[1]}")
