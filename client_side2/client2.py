@@ -11,6 +11,8 @@ CLIENT_SERVER_PORT = 12347
 
 CLIENT_ID = "127.0.0.1:12347"
 
+end_signal = b'END_OF_FILE_TRANSFER'
+
 # Function to send requests to the server
 def send_request(request, client_socket):
     client_socket.send(request.encode())
@@ -29,34 +31,32 @@ def handle_incoming_request(client_socket):
             # Handle FETCH request here
             file_path = "client_repository/" + parts[1]
             send_file(client_socket, file_path)
-            pass
         if parts[0] == "PING":
             # Handle FETCH request here
             client_socket.send("PONG".encode())
-            pass
         # Add more handlers for other request types
 
     client_socket.close()
 
-def listen_for_server():
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((SERVER_IP, SERVER_PORT))
+def listen_for_server(server_socket):
     while True:
         command = input("Enter a command (publish, fetch): ").strip().split()
-        if command[0] == "publish":
+        if not command: continue
+        elif command[0] == "publish":
             # Implement the logic to publish a file here
             try:
-                publish_file(CLIENT_ID, command[1], command[2], client_socket)
+                publish_file(CLIENT_ID, command[1], command[2], server_socket)
             except Exception as e:
                 print(f"An unexpected error occurred: {e}")
                 
         elif command[0] == "fetch":
             # Fetch client has file
             try:
-                target_clients = fetch_file_locations(command[1], client_socket)
+                target_clients = fetch_file_locations(command[1], server_socket)
                 if(target_clients == "none"): raise Exception("file not founed")
                 target_clients = target_clients.split(' ')
-                fetch_handler = threading.Thread(target=fetch_and_receive_file, args=(command[1], target_clients[0]))
+                print("flag")
+                fetch_handler = threading.Thread(target=fetch_and_receive_file, args=(command[1], target_clients[0], server_socket))
                 fetch_handler.start()
             except Exception as e:
                 print(f"An unexpected error occurred: {e}")
@@ -65,32 +65,41 @@ def listen_for_server():
             print("Invalid command. Supported commands: CONNECT, PUBLISH, FETCH")
 
 def send_file(client_socket, file_path):
+    print("flag1")
     with open(file_path, 'rb') as file:
         data = file.read(1024)  # Read 1 KB at a time (adjust as needed)
         while data:
             client_socket.send(data)
             data = file.read(1024)
+    
+    client_socket.send(end_signal)
+    
+    print("flag2")
 
-def fetch_and_receive_file(file_name, client_id):
+def fetch_and_receive_file(file_name, client_id, server_socket):
     ip_address, port = client_id.split(':')
     port = int(port)
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((ip_address, port))
     
-    fetch_request = f"FETCH {file_name}"
-    client_socket.send(fetch_request.encode())
-
     repository_path = "client_repository/"
     repository_path = os.path.join(repository_path, file_name)
     os.makedirs(os.path.dirname(repository_path), exist_ok=True)
+    fetch_request = f"FETCH {file_name}"
+    client_socket.send(fetch_request.encode())
+
     with open(repository_path, 'wb') as file:
         while True:
             data = client_socket.recv(1024)  # Receive 1 KB at a time (adjust as needed)
             if not data:
                 break
+            if data.endswith(end_signal):
+            # Remove the end signal from the data before writing to the file
+                file.write(data[:-len(end_signal)])
+                break
             file.write(data)
 
-    inform_fetched_file(CLIENT_ID, file_name)
+    inform_fetched_file(CLIENT_ID, file_name, server_socket)
     print("FETCH SUCCESSFUL")
 
 # Function to publish a file
@@ -121,12 +130,14 @@ def fetch_file(file_name):
     send_request(request)
 
 # Function to inform the server about a fetched file
-def inform_fetched_file(client_id, file_name):
+def inform_fetched_file(client_id, file_name, client_socket):
     request = f"INFORM {client_id} {file_name}"
-    send_request(request)
+    send_request(request, client_socket)
 
 def main():
-    server_listener = threading.Thread(target=listen_for_server)
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.connect((SERVER_IP, SERVER_PORT))
+    server_listener = threading.Thread(target=listen_for_server, args=(server_socket,))
     server_listener.start() 
     request_handling_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     request_handling_socket.bind((CLIENT_SERVER_IP, CLIENT_SERVER_PORT))  # Change the port as needed

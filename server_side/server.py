@@ -76,7 +76,8 @@ def ping_host(client_id):
 def handle_command():
     while True:
         command = input("Enter a command for the server (ping, discover): ").strip().split()
-        if command[0] == "ping":
+        if not command: continue
+        elif command[0] == "ping":
             try:
                 ping_host(command[1])
             except Exception as e:
